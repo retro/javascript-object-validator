@@ -183,7 +183,7 @@ var Validator = {
   }
 }
 
-Validator.add_validator('validates_test', function(){return false;}, 'Custom named validator message');
+Validator.add_validator('validates_test', function(field, args){return false;}, 'Custom named validator message');
 
 var validator_scheme = {
   validates_presence_of: ['title', 'lead'],
