@@ -193,7 +193,7 @@ var validator_scheme = {
                                                       return this.validates_email_format_of(field, args);
                                                     return true;
                                                   }, message: 'Custom validation message'},
-                            {fields: 'title', with: function(args){return false}}],
+                            {fields: 'title', with: function(field, args){return false}}],
   validates_test: 'title'
 };
 var validating_object = {title: 'Homer', lead: '', email: 'test@mail.com'};
