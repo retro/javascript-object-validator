@@ -1,0 +1,4 @@
+Currently this is still just a proof of concept. Code is still messy, and there is no testing.
+
+It allows you to write Validator objects that work similar to Rails ActiveRecord validations.
+There is example in validator.js file.
