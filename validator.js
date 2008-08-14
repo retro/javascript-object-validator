@@ -23,179 +23,131 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 */
 
-function isArray(testObject) {   
-  return testObject && !(testObject.propertyIsEnumerable('length')) && typeof testObject === 'object' && typeof testObject.length === 'number';
+var Validator = function(subject, validation_schema){
+  this.subject = subject;
+  this.validations = {};
+  this.setup_validations(validation_schema);
+};
+Validator.prototype.validate = function(){
+  error_messages = {};
+  for(field in this.validations)
+  {
+    result = this.validate_field(field)
+    if(result != true)
+      error_messages[field] = result;
+  }
+  return error_messages;
 }
-var Validator = {
-  validation_messages: { validates_presence_of: 'should not be empty', 
-                         validates_format_of: 'is in wrong format',
-                         validates_email_format_of: 'is not valid e-mail address',
-                         validates_with_function: 'did not pass custom validation'},
-  validate: function(model, validator)
+Validator.prototype.validate_field = function(field){
+  this.subject._validate = function(validator, field, args){
+    return Validator.validators[validator].call(this, field, args);
+  }
+  field_validations = this.validations[field];
+  error_messages_for_field = [];
+  for(i in field_validations)
   {
-    this.messages = {};
-    this.validations = [];
-    this._setup_validations(model, validator);
-    for(v in this.validations)
+    if(i != '_type')
     {
-      try
+      if(typeof(field_validations[i].args) != 'undefined')
+        custom_message = field_validations[i]['args']['message'];
+      if(!this.validate_field_with_validator(field_validations[i]['validator'], field, field_validations[i]['args']))
       {
-        if(typeof(model[this.validations[v][0]]) == 'function')
-        {
-          validation = model[this.validations[v][0]](this.validations[v][2], this.validations[v][1]);
-          if(validation !== true)
-          {
-            if(typeof(this.validations[v][1].message) != 'undefined')
-              this._add_error_message(this.validations[v][2], this.validations[v][1].message);
-            else
-              this._add_error_message(this.validations[v][2], this._error_message_For(this.validations[v][0]));
-          }
-        }
+        if(typeof(custom_message) == 'undefined')
+          error_messages_for_field.push(Validator.error_messages[field_validations[i]['validator']]);
         else
-          throw('There is no validation named ' + this.validations[v][0])
-      }
-      catch(e){
-        //console.log(e)
+          error_messages_for_field.push(custom_message);
       }
     }
-    
-    //console.log(this.messages)
-    return this.messages
-  },
-  _setup_validations: function(model, validator)
+  }
+  delete this.subject._validate;
+  if(error_messages_for_field.length == 0)
+    return true;
+  return error_messages_for_field;
+}
+Validator.prototype.validate_field_with_validator = function(validator, field, args){
+  return Validator.validators[validator].call(this.subject, field, args);
+}
+Validator.prototype.setup_validations = function(validation_schema)
+{
+  for(var v in validation_schema)
   {
-    for(f in this.validators)
+    validation_options = validation_schema[v];
+    if(Validator.utils.isArray(validation_options))
     {
-      model[f] = this.validators[f];
-    }
-    for(var v in validator)
-    {
-      validation_options = validator[v]
-      if(isArray(validation_options))
+      for(i in validation_options)
       {
-        for(i in validation_options)
+        if(i !== '_type')
         {
-          if(typeof(validation_options[i]) == 'string')
-          {
-            this._add_validation_to_object(validation_options[i], v, {});
-          }
+          if(Validator.utils.isString(validation_options[i]))
+            this.add_validation_for_subject(validation_options[i], v, {});
           else
           {
-            fields = validation_options[i].fields
+            fields = validation_options[i].fields;
             args = validation_options[i];
             delete(args.fields);
-            if(isArray(fields))
-            {
+            if(Validator.utils.isArray(fields))
               for(j in fields)
               {
-                this._add_validation_to_object(fields[j], v, args)
+                if(j != '_type')
+                  this.add_validation_for_subject(fields[j], v, args);
               }
-            }
             else
-            {
-              this._add_validation_to_object(fields, v, args)
-            }
+              this.add_validation_for_subject(fields, v, args);
           }
         }
       }
-      else if(typeof(validation_options) == 'string')
-      {
-        this._add_validation_to_object(validation_options, v, {})
-      }
-      else
-      {
-        fields = validation_options.fields;
-        args = validation_options;
-        delete(args.fields);
-        if(isArray(fields))
-        {
-          for(j in fields)
-          {
-            this._add_validation_to_object(fields[j], v, args)
-          }
-        }
-        else
-        {
-          this._add_validation_to_object(fields, v, args)
-        }
-      }
     }
-  },
-  _add_validation_to_object: function(field, validation, args)
-  {
-    this.validations.push([validation, args, field])
-  },
-  add_validator: function(validator_name, f, message)
-  {
-    try
-    {
-      if(typeof(this.validators[validator_name]) == 'undefined')
-      {            
-        this.validators[validator_name] = f;
-        this.add_validation_message(validator_name, message)
-      }
-      else
-      {
-        throw("You can't overwrite built in validator")
-      }
-    }
-    catch(e)
-    {
-      //console.log(e)
-    }
-  },
-  
-  validators: {
-    validates_presence_of: function(field, args)
-    {
-      if(this[field] == null || this[field] == '')
-        return false;
-      return true;
-    },
-    validates_format_of: function(field, args)
-    {
-      return args.with.test(this[field])
-    },
-    validates_email_format_of: function(field, args)
-    {
-      args.with = /^([a-zA-Z0-9])+([\.a-zA-Z0-9_-])*@([a-zA-Z0-9])+(\.[a-zA-Z0-9_-]+)+$/;
-      return this.validates_format_of(field, args);
-    },
-    validates_with_function: function(field, args)
-    {
-      return args.with.call(this, field, args);
-    }
-  },
-  add_validation_message: function(validator_name, message){
-    this.validation_messages[validator_name] = message;
-  },
-  _error_message_For: function(v){
-    if(typeof(this.validation_messages[v]) != 'undefined')
-      return this.validation_messages[v];
+    else if(Validator.utils.isString(validation_options))
+      this.add_validation_for_subject(validation_options, v, {});
     else
-      return v + ' failed';
-  },
-  _add_error_message: function(field, message)
-  {
-    if(typeof(this.messages[field]) == 'undefined')
-      this.messages[field] = [];
-    this.messages[field].push(message);
+    {
+      fields = validation_options.fields;
+      args = validation_options;
+      delete(args.fields);
+      if(Validator.utils.isArray(fields))
+        for(j in fields)
+        {
+          this.add_validation_for_subject(fields[j], v, args);
+        }
+      else
+        this.add_validation_for_subject(fields, v, args);
+    }
   }
 }
-
-Validator.add_validator('validates_test', function(field, args){return false;}, 'Custom named validator message');
-
-var validator_scheme = {
-  validates_presence_of: ['title', 'lead'],
-  validates_format_of: {fields: 'title', with: /Homer|Marge|Bart|Lisa|Maggie/},
-  validates_with_function: [{fields: ['lead', 'email'], with: function(field, args){
-                                                    if(this.validates_presence_of(field, args))
-                                                      return this.validates_email_format_of(field, args);
-                                                    return true;
-                                                  }, message: 'Custom validation message'},
-                            {fields: 'title', with: function(field, args){return false}}],
-  validates_test: 'title'
-};
-var validating_object = {title: 'Homer', lead: '', email: 'test@mail.com'};
-
-Validator.validate(validating_object, validator_scheme);
+Validator.prototype.add_validation_for_subject = function(field, validator, args)
+{
+  if(typeof(this.validations[field]) == 'undefined')
+    this.validations[field] = [];
+  return this.validations[field].push({validator: validator, args: args})
+}
+Validator.add_validator = function(validator_name, validator_function, validator_error_message){
+  Validator.validators[validator_name] = validator_function;
+  Validator.error_messages[validator_name] = validator_error_message;
+}
+Validator.utils = {
+  isArray: function(testObject) {   
+    return testObject && !(testObject.propertyIsEnumerable('length')) && typeof testObject === 'object' && typeof testObject.length === 'number';
+  },
+  isString: function(testObject) {
+    return !!arguments.length && testObject != null && (typeof testObject == "string" || testObject instanceof String)
+  }
+}
+Validator.error_messages = { presence_of     : 'should not be empty', 
+                             format_of       : 'is in wrong format',
+                             email_format_of : 'is not valid e-mail address',
+                             with_function   : 'did not pass custom validation' };
+Validator.validators = { presence_of: function(field, args){
+                            if(typeof(this[field]) == 'undefined' || this[field] == null || this[field] == '')
+                              return false;
+                            return true;
+                          },
+                          format_of: function(field, args){
+                            return args.with.test(this[field])
+                          },
+                          email_format_of: function(field, args){
+                            args.with = /^([a-zA-Z0-9])+([\.a-zA-Z0-9_-])*@([a-zA-Z0-9])+(\.[a-zA-Z0-9_-]+)+$/;
+                            return this._validate('format_of', field, args);
+                          },
+                          with_function: function(field, args){
+                            return args.with.call(this, field, args);
+                          }};

@@ -1,0 +1,84 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ko">
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+<title>JSSpec results for Validator.js library</title>
+<link rel="stylesheet" type="text/css" href="JSSpec.css" />
+<script type="text/javascript" src="diff_match_patch.js"></script>
+<script type="text/javascript" src="JSSpec.js"></script>
+<script type="text/javascript" src="../validator.js"></script>
+<script type="text/javascript">// <![CDATA[
+describe('Adding new validators', {
+  'Should include numericality_of validator': function(){
+    Validator.add_validator('numericality_of', 
+                            function(field, args){
+                              return /^-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(this[field]);
+                            }, 
+                            'should be number');
+    value_of(Validator.validators).should_include('numericality_of');
+  }
+});
+describe('Validator schema definition',{
+  'Should allow passing field name as string': function(){
+    validation_subject = {test_field: 'Test value'};
+    validate = {presence_of: 'test_field'}
+    validator = new Validator(validation_subject, validate);
+    value_of(validator.validations).should_include('test_field');
+  },
+  'Should allow passing fields as array': function(){
+    validation_subject = {test_field: 'Test value', test_field_2: 'Test value 2'};
+    validate = {presence_of: ['test_field', 'test_field_2']}
+    validator = new Validator(validation_subject, validate);
+    value_of(validator.validations).should_include('test_field');
+    value_of(validator.validations).should_include('test_field_2');
+  },
+  'Should allow passing of field name as string inside hash': function(){
+    validation_subject = {test_field: 'Test value', test_field_2: 'Test value 2'};
+    validate = {format_of: {fields: 'test_field', with: function(field, args){return true;}}}
+    validator = new Validator(validation_subject, validate);
+    value_of(validator.validations).should_include('test_field');
+  },
+  'Should allow passing fields as array of strings inside hash': function(){
+    validation_subject = {test_field: 'Test value', test_field_2: 'Test value 2'};
+    validate = {format_of: {fields: ['test_field', 'test_field_2'], with: function(field, args){return true;}}}
+    validator = new Validator(validation_subject, validate);
+    value_of(validator.validations).should_include('test_field');
+    value_of(validator.validations).should_include('test_field_2');
+  },
+  'Should allow defining validation as array of hashes': function(){
+    validation_subject = {test_field: 'Test value', test_field_2: 'Test value 2'};
+    validate = {format_of: [{fields: 'test_field', with: function(field, args){return true;}},
+                            {fields: 'test_field_2', with: function(field, args){return true;}}]
+               };
+    validator = new Validator(validation_subject, validate);
+    value_of(validator.validations).should_include('test_field');
+    value_of(validator.validations).should_include('test_field_2');
+  }
+})
+describe('Validating objects', {
+  before: function(){
+    validator = new Validator(
+      {test_field_1: 'Test', test_field_2: '', test_field_3: 'test.com'},
+      {presence_of    : 'test_field_2',
+       email_format_of: ['test_field_3'],
+       with_function  : {fields: 'test_field_1', with: function(fields, args){return false;}},
+       format_of      : [{fields: ['test_field_2'], with: /SomeStringThatWillFail/ },
+                         {fields: 'test_field_3', with: /SomeStringThatWillFail/}
+                        ]
+      }
+    )
+  },
+  'Should have three error arrays': function(){
+    length = 0;
+    for(var i in validator.validate())
+      length++;
+    value_of(length).should_be(3);
+  },
+  'Should have two errors on field "test_field_2"': function(){
+    value_of(validator.validate()['test_field_2'].length).should_be(2);
+  }
+})
+// ]]></script>
+</head>
+<body><div style="display:none;"><p>A</p><p>B</p></div></body>
+</html>

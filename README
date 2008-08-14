@@ -1,4 +1,18 @@
-Currently this is still just a proof of concept. Code is still messy, and there is no testing.
+Small validation framework written in Javascript. It does validation on Javascript objects, not on form fields. You can find some specs in test folder.
 
-It allows you to write Validator objects that work similar to Rails ActiveRecord validations.
-There is example in validator.js file.
+The main point is to allow complex validations on dependant fields.
+
+Example:
+
+validator = new Validator(
+  {test_field_1: 'Test', test_field_2: '', test_field_3: 'test.com'},
+  {presence_of    : 'test_field_2',
+   email_format_of: ['test_field_3', 'test_field_2'],
+   with_function  : {fields: 'test_field_1', with: function(fields, args){return false;}},
+   format_of      : [{fields: ['test_field_2'], with: /SomeStringThatWillFail/ },
+                     {fields: 'test_field_3', with: /SomeStringThatWillFail/, message: 'Custom validation message'}
+                    ]
+  }
+)
+
+First argument is the object you are validating, and second is validation schema. You can easily add custom validators, or use anonymous function for validations.
